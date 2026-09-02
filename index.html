@@ -1693,31 +1693,31 @@ function buildMonthlyTrendCharts(m){
     type:'line',
     data:{ labels, datasets:[{
       data: trail.map(d=> d.umsatz ? d.umsatz.p2 : null),
-      borderColor: primary, backgroundColor: primary+'33', fill:true, tension:.25, pointRadius:5, borderWidth:3, spanGaps:false
+      borderColor: primary, backgroundColor: primary+'33', fill:true, tension:.25, pointRadius:9, borderWidth:6, spanGaps:false
     }]},
     options:{
       plugins:{ legend:{display:false} },
       scales:{
-        x:{ ticks:{font:{size:20}} },
-        y:{ ticks:{font:{size:20}, callback:v=>fmtCHFCompact(v)}, title:{display:true, text:'CHF', font:{size:20}} }
+        x:{ ticks:{font:{size:40}} },
+        y:{ ticks:{font:{size:40}, callback:v=>fmtCHFCompact(v)}, title:{display:true, text:'CHF', font:{size:40}} }
       }
     }
-  }, 1400, 560);
+  }, 2800, 1120);
 
   const nettoImg = renderChartToImage({
     type:'line',
     data:{ labels, datasets:[{
       data: trail.map(d=> netto(d)),
-      borderColor:'#1D8384', backgroundColor:'#1D838433', fill:true, tension:.25, pointRadius:5, borderWidth:3
+      borderColor:'#1D8384', backgroundColor:'#1D838433', fill:true, tension:.25, pointRadius:9, borderWidth:6
     }]},
     options:{
       plugins:{ legend:{display:false} },
       scales:{
-        x:{ ticks:{font:{size:20}} },
-        y:{ ticks:{font:{size:20}}, title:{display:true, text:'Std.', font:{size:20}} }
+        x:{ ticks:{font:{size:40}} },
+        y:{ ticks:{font:{size:40}}, title:{display:true, text:'Std.', font:{size:40}} }
       }
     }
-  }, 1400, 560);
+  }, 2800, 1120);
 
   return {umsatzImg, nettoImg};
 }
@@ -1725,26 +1725,27 @@ function buildMonthlyTrendCharts(m){
 // Kumulierter Jahresvergleich + Ausfallkosten pro Monat für die Jahresauswertung
 function buildYearlyCharts(year, yearEntries){
   const primary = '#2BB6B7';
+  const umsatzEntries = yearEntries.filter(m=>m.umsatz);
   let cumCur=0, cumPrev=0;
-  const labels = yearEntries.map(m=>m.label.split(' ')[0]);
+  const progressLabels = umsatzEntries.map(m=>m.label.split(' ')[0]);
   const dataCur=[], dataPrev=[];
-  yearEntries.forEach(m=>{ cumCur+=m.umsatz.p2; cumPrev+=m.umsatz.p1; dataCur.push(cumCur); dataPrev.push(cumPrev); });
+  umsatzEntries.forEach(m=>{ cumCur+=m.umsatz.p2; cumPrev+=m.umsatz.p1; dataCur.push(cumCur); dataPrev.push(cumPrev); });
 
-  const progressImg = renderChartToImage({
+  const progressImg = umsatzEntries.length===0 ? null : renderChartToImage({
     type:'line',
-    data:{ labels, datasets:[
-      { label:'Vorjahr', data:dataPrev, borderColor:'#A3C9CA', backgroundColor:'transparent', borderDash:[10,6], borderWidth:3, tension:.2, pointRadius:5 },
+    data:{ labels:progressLabels, datasets:[
+      { label:'Vorjahr', data:dataPrev, borderColor:'#A3C9CA', backgroundColor:'transparent', borderDash:[18,12], borderWidth:6, tension:.2, pointRadius:9 },
       { label:String(year), data:dataCur, borderColor:primary, backgroundColor:'transparent',
-        fill:{target:0, above:'rgba(46,158,91,.22)', below:'rgba(193,80,61,.22)'}, borderWidth:3, tension:.2, pointRadius:5 },
+        fill:{target:0, above:'rgba(46,158,91,.22)', below:'rgba(193,80,61,.22)'}, borderWidth:6, tension:.2, pointRadius:9 },
     ]},
     options:{
-      plugins:{ legend:{position:'top', labels:{font:{size:20}, boxWidth:20}} },
+      plugins:{ legend:{position:'top', labels:{font:{size:40}, boxWidth:36}} },
       scales:{
-        x:{ ticks:{font:{size:20}} },
-        y:{ ticks:{font:{size:20}, callback:v=>fmtCHFCompact(v)}, title:{display:true, text:'CHF kumuliert', font:{size:20}} }
+        x:{ ticks:{font:{size:40}} },
+        y:{ ticks:{font:{size:40}, callback:v=>fmtCHFCompact(v)}, title:{display:true, text:'CHF kumuliert', font:{size:40}} }
       }
     }
-  }, 1400, 620);
+  }, 2800, 1240);
 
   const reasonColors = {"Mitarbeiter-Abwesenheit":primary, "Kundenabsagen":'#C1503D', "Feiertage":'#5E7273'};
   const ausfallImg = renderChartToImage({
@@ -1755,13 +1756,13 @@ function buildYearlyCharts(year, yearEntries){
       }))
     },
     options:{
-      plugins:{ legend:{position:'top', labels:{font:{size:18}, boxWidth:18}} },
+      plugins:{ legend:{position:'top', labels:{font:{size:36}, boxWidth:34}} },
       scales:{
-        x:{ stacked:true, ticks:{font:{size:20}} },
-        y:{ stacked:true, ticks:{font:{size:20}, callback:v=>fmtCHFCompact(v)}, title:{display:true, text:'CHF', font:{size:20}} }
+        x:{ stacked:true, ticks:{font:{size:40}} },
+        y:{ stacked:true, ticks:{font:{size:40}, callback:v=>fmtCHFCompact(v)}, title:{display:true, text:'CHF', font:{size:40}} }
       }
     }
-  }, 1400, 560);
+  }, 2800, 1120);
 
   return {progressImg, ausfallImg};
 }
@@ -1934,14 +1935,10 @@ function generateMonthlyReportPDF(key){
   doc.setFont('DejaVuSans','normal');
   y2 += 10;
 
-  addChartSectionHeading(doc, marginL, y2, 'Umsatz PFS im Jahresvergleich');
-  y2 += 4;
-  const chartH1 = addChartImageToDoc(doc, 'chartUmsatz', marginL, y2, pageW-marginL-marginR, 85);
-  y2 += (chartH1 || 6) + 14;
+  const monthlyCharts = buildMonthlyTrendCharts(m);
 
-  addChartSectionHeading(doc, marginL, y2, 'Netto-Stundenzuwachs');
-  y2 += 4;
-  addChartImageToDoc(doc, 'chartNetto', marginL, y2, pageW-marginL-marginR, 85);
+  y2 = addChartToPdf(doc, 'Umsatz PFS im Jahresvergleich (letzte 12 Monate)', monthlyCharts.umsatzImg, y2, marginL, marginR, pageW);
+  y2 = addChartToPdf(doc, 'Netto-Stundenzuwachs (letzte 12 Monate)', monthlyCharts.nettoImg, y2, marginL, marginR, pageW);
 
   // Footer auf allen Seiten
   const pageCount = doc.internal.getNumberOfPages();
@@ -2099,20 +2096,11 @@ function generateYearlyReportPDF(year){
   doc.setFont('DejaVuSans','normal');
   y2 += 10;
 
-  // Der Jahresverlauf-Chart auf dem Bildschirm zeigt immer das aktuelle Kalenderjahr –
-  // nur einbetten, wenn das auch das angeforderte Berichtsjahr ist, sonst würden falsche
-  // Daten unter dem falschen Jahr erscheinen.
-  const isCurrentCalendarYear = String(new Date().getFullYear()) === String(year);
-  if(isCurrentCalendarYear){
-    addChartSectionHeading(doc, marginL, y2, 'Jahresverlauf – kumulierter Umsatz im Vergleich zum Vorjahr');
-    y2 += 4;
-    const chartH1 = addChartImageToDoc(doc, 'chartYearProgress', marginL, y2, pageW-marginL-marginR, 85);
-    y2 += (chartH1 || 6) + 14;
+  const yearlyCharts = buildYearlyCharts(year, yearEntries);
+  if(yearlyCharts.progressImg){
+    y2 = addChartToPdf(doc, `Jahresverlauf ${year} – kumulierter Umsatz im Vergleich zum Vorjahr`, yearlyCharts.progressImg, y2, marginL, marginR, pageW);
   }
-
-  addChartSectionHeading(doc, marginL, y2, isCurrentCalendarYear ? 'Ausfallkosten nach Grund im Jahresverlauf' : 'Umsatz PFS im Jahresvergleich (alle erfassten Monate)');
-  y2 += 4;
-  addChartImageToDoc(doc, isCurrentCalendarYear ? 'chartAusfall' : 'chartUmsatz', marginL, y2, pageW-marginL-marginR, 85);
+  y2 = addChartToPdf(doc, `Ausfallkosten nach Grund im Jahresverlauf ${year}`, yearlyCharts.ausfallImg, y2, marginL, marginR, pageW);
 
   const pageCount = doc.internal.getNumberOfPages();
   for(let p=1; p<=pageCount; p++){
