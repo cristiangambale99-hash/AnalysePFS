@@ -70,6 +70,68 @@
     opacity:.8;
     border-top:1px solid rgba(255,255,255,.25);
   }
+  .sidebar-months{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    min-height:0;
+    margin-top:8px;
+    border-top:1px solid rgba(255,255,255,.25);
+  }
+  .sidebar-months-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:14px 20px 8px 20px;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+    opacity:.85;
+  }
+  .sidebar-months-head button{
+    background:rgba(255,255,255,.2);
+    border:none;
+    color:#fff;
+    width:20px; height:20px;
+    border-radius:4px;
+    font-size:14px;
+    line-height:1;
+    cursor:pointer;
+  }
+  .sidebar-months-head button:hover{ background:rgba(255,255,255,.35); }
+  .sidebar-month-list{
+    flex:1;
+    overflow-y:auto;
+    padding-bottom:8px;
+  }
+  .sidebar-month-item{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:8px 20px;
+    font-size:12.5px;
+    color:#fff;
+    cursor:pointer;
+    border-left:3px solid transparent;
+    opacity:.92;
+  }
+  .sidebar-month-item:hover{
+    background:rgba(255,255,255,.15);
+    border-left:3px solid #fff;
+  }
+  .sidebar-month-item .net{
+    font-size:10.5px;
+    font-weight:bold;
+    padding:1px 6px;
+    border-radius:8px;
+    background:rgba(255,255,255,.2);
+  }
+  .sidebar-month-item .net.neg{ background:rgba(214,91,74,.4); }
+  .sidebar-month-empty{
+    padding:10px 20px;
+    font-size:11.5px;
+    opacity:.75;
+  }
   /* Main */
   main{flex:1; padding:28px 32px; max-width:1200px;}
   header.page-head{
@@ -212,6 +274,13 @@
   <nav>
     <a href="#" class="active">Trend-Dashboard</a>
   </nav>
+  <div class="sidebar-months">
+    <div class="sidebar-months-head">
+      <span>Erfasste Monate</span>
+      <button type="button" id="sidebarAddBtn" title="Monat erfassen">+</button>
+    </div>
+    <div id="sidebarMonthList" class="sidebar-month-list"></div>
+  </div>
   <div class="sidebar-footer">ISO 9001 &middot; 14001 &middot; 45001</div>
 </div>
 
@@ -259,10 +328,17 @@
   </div>
 
   <div class="card">
-    <h2>Feiertage Kanton Zürich</h2>
-    <div class="desc">Automatisch berechnet (inkl. beweglicher Feiertage) &ndash; Basis für Arbeitstage &amp; Tagesrate</div>
-    <div id="holidayYears" style="display:flex; gap:10px; margin-bottom:12px; flex-wrap:wrap;"></div>
-    <div id="holidayList" style="overflow-x:auto;"></div>
+    <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" id="holidayToggle">
+      <div>
+        <h2 style="display:inline;">Feiertage Kanton Zürich</h2>
+        <div class="desc">Automatisch berechnet (inkl. beweglicher Feiertage) &ndash; Basis für Arbeitstage &amp; Tagesrate</div>
+      </div>
+      <span id="holidayToggleIcon" style="font-size:12px; color:var(--primary-dark); white-space:nowrap;">Anzeigen ▾</span>
+    </div>
+    <div id="holidayBody" style="display:none; margin-top:14px;">
+      <div id="holidayYears" style="display:flex; gap:10px; margin-bottom:12px; flex-wrap:wrap;"></div>
+      <div id="holidayList" style="overflow-x:auto;"></div>
+    </div>
   </div>
 
   <div class="card">
@@ -491,11 +567,38 @@ function arbeitstageInfo(m){
 let charts = {};
 
 function render(){
-  renderHero();
-  renderCharts();
-  renderTable();
-  renderHolidayCard();
-  renderYearSelect();
+  const steps = [
+    ['Hero', renderHero],
+    ['Charts', renderCharts],
+    ['Table', renderTable],
+    ['Holidays', renderHolidayCard],
+    ['YearSelect', renderYearSelect],
+    ['SidebarMonths', renderSidebarMonths],
+  ];
+  steps.forEach(([name, fn])=>{
+    try { fn(); }
+    catch(err){ console.error(`Render-Schritt "${name}" fehlgeschlagen:`, err); }
+  });
+}
+
+function renderSidebarMonths(){
+  const list = document.getElementById('sidebarMonthList');
+  if(DATA.length === 0){
+    list.innerHTML = '<div class="sidebar-month-empty">Noch keine Monate erfasst.</div>';
+    return;
+  }
+  // Neuester Monat zuerst
+  const sorted = [...DATA].sort((a,b)=> b.key.localeCompare(a.key));
+  list.innerHTML = sorted.map(m=>{
+    const n = netto(m);
+    return `<div class="sidebar-month-item" data-key="${m.key}">
+      <span>${m.label}</span>
+      <span class="net ${n>=0?'':'neg'}">${n>=0?'+':''}${n.toFixed(0)}</span>
+    </div>`;
+  }).join('');
+  list.querySelectorAll('.sidebar-month-item').forEach(el=>{
+    el.addEventListener('click', ()=> openEditModal(el.dataset.key));
+  });
 }
 
 function renderYearSelect(){
@@ -606,6 +709,14 @@ function renderHero(){
 function destroyCharts(){ Object.values(charts).forEach(c=>c && c.destroy()); charts = {}; }
 
 function renderCharts(){
+  if(typeof Chart === 'undefined'){
+    ['chartNetto','chartAusfall','chartUmsatz','chartKunden'].forEach(id=>{
+      const canvas = document.getElementById(id);
+      const wrap = canvas ? canvas.parentElement : null;
+      if(wrap) wrap.innerHTML = '<div class="empty-state">Diagramm konnte nicht geladen werden (Chart.js nicht erreichbar – Internetverbindung prüfen).</div>';
+    });
+    return;
+  }
   destroyCharts();
   const labels = DATA.map(m=>m.label);
   const primary = getComputedStyle(document.documentElement).getPropertyValue('--primary').trim();
@@ -674,19 +785,26 @@ function renderCharts(){
     }
   });
 
-  // Aktive Kunden
-  const kd = DATA.filter(m=>m.kunden!=null);
+  // Aktive Kunden – volle Zeitachse, fehlende Monate als Lücke sichtbar statt Achse stillschweigend zu kürzen
+  const missingKundenCount = DATA.filter(m=>m.kunden==null).length;
   charts.kunden = new Chart(document.getElementById('chartKunden'), {
     type:'line',
-    data:{ labels: kd.map(m=>m.label), datasets:[{
-      label:'Aktive Kunden', data: kd.map(m=>m.kunden),
-      borderColor:'#1D8384', backgroundColor:'#1D838433', fill:true, tension:.25, pointRadius:3
+    data:{ labels, datasets:[{
+      label:'Aktive Kunden', data: DATA.map(m=>m.kunden),
+      borderColor:'#1D8384', backgroundColor:'#1D838433', fill:true, tension:.25, pointRadius:3,
+      spanGaps:false
     }]},
     options:{ responsive:true, maintainAspectRatio:false,
       plugins:{legend:{display:false}},
       scales:{ x:{ticks:{maxRotation:60, minRotation:60, font:{size:10}}}, y:{title:{display:true,text:'Anzahl'}} }
     }
   });
+  const kundenNote = document.querySelector('#chartKunden').closest('.card').querySelector('.desc');
+  if(kundenNote){
+    kundenNote.textContent = missingKundenCount > 0
+      ? `Verlauf der aktiven Kundenanzahl (${missingKundenCount} Monat${missingKundenCount>1?'e':''} ohne Erfassung, Lücke im Chart)`
+      : 'Verlauf der aktiven Kundenanzahl';
+  }
 }
 
 function renderTable(){
@@ -892,6 +1010,7 @@ function deleteMonth(key){
 }
 
 document.getElementById('addMonthBtn').addEventListener('click', ()=>{ resetForm(); overlay.classList.add('open'); });
+document.getElementById('sidebarAddBtn').addEventListener('click', ()=>{ resetForm(); overlay.classList.add('open'); });
 document.getElementById('closeModal').addEventListener('click', ()=> overlay.classList.remove('open'));
 document.getElementById('cancelForm').addEventListener('click', ()=> overlay.classList.remove('open'));
 document.getElementById('f-year').addEventListener('input', ()=>{ syncUmsatzLabels(); syncArbeitstageHint(); });
@@ -1294,6 +1413,14 @@ document.getElementById('detailsToggle').addEventListener('click', ()=>{
   const open = body.style.display !== 'none';
   body.style.display = open ? 'none' : 'block';
   icon.textContent = open ? 'Details einblenden ▾' : 'Details ausblenden ▴';
+});
+
+document.getElementById('holidayToggle').addEventListener('click', ()=>{
+  const body = document.getElementById('holidayBody');
+  const icon = document.getElementById('holidayToggleIcon');
+  const open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : 'block';
+  icon.textContent = open ? 'Anzeigen ▾' : 'Ausblenden ▴';
 });
 
 render();
